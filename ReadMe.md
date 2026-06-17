@@ -34,13 +34,13 @@ If you need to calibrate your servos' middle position, use the Seeed RoboControl
 
 ```bash
 cd Seeed_RoboController
-python -m src.tools.servo_middle_calibration /dev/ttyACM0
+uv run python -m src.tools.servo_middle_calibration /dev/ttyACM0
 ```
 
 If you want to choose the port interactively, omit the device path:
 
 ```bash
-python -m src.tools.servo_middle_calibration
+uv run python -m src.tools.servo_middle_calibration
 ```
 
 This tool will:
