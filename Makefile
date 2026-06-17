@@ -11,7 +11,7 @@ teleop:
 	uv run python -m lerobot.scripts.lerobot_teleoperate $(TELEOP_ARGS)
 
 simulate:
-	uv run python simulate.py
+	uv run python simulate.py $(SIM_ARGS)
 # Usage:
 #   make setup SETUP_ARGS="--robot.type=so101_follower --robot.port=/dev/ttyACM0"
 #   make calibrate CALIBRATE_ARGS="--robot.type=so101_follower --robot.port=/dev/ttyACM0"
