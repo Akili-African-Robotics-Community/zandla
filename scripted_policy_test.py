@@ -17,9 +17,9 @@ if __name__ == "__main__":
     env = PushCubeGymEnv(render_mode="human")
     # Custom initial cube position to spawn
     init_cube_pos = [0.2, 0.0, 0.015]
-    for episode in range(5):
+    for episode in range(3):
         direction = "left" if episode % 2 == 0 else "right"
-        swap_target = True
+        swap_target = False
         instruction = generate_push_instruction(
             direction=direction, swap_targets=swap_target
         )
