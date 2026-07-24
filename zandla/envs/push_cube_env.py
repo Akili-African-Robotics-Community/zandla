@@ -137,6 +137,13 @@ class PushCubeGymEnv(gym.Env):
             dtype=np.float32,
         )
 
+        # Define target location variables
+        self.left_target = [0.2, 0.1, 0.0001]
+        self.right_target = [0.2, -0.1, 0.0001]
+
+        # Define end-effector rest position
+        self.ee_rest = np.array([0.0, 0.5, 1.0, 0.5, 0.0, 0.5], dtype=np.float32)
+
         # Define Gym observation space with dict containing state and text instructions
         self.observation_space = spaces.Dict(
             {
@@ -207,8 +214,8 @@ class PushCubeGymEnv(gym.Env):
             target_green_id = self.physics.model.name2id("target_green", "geom")
             target_blue_id = self.physics.model.name2id("target_blue", "geom")
             # Swap target positions: green -> -0.1 (right), blue -> +0.1 (left)
-            self.physics.model.geom_pos[target_green_id] = [0.2, -0.1, 0.0001]
-            self.physics.model.geom_pos[target_blue_id] = [0.2, 0.1, 0.0001]
+            self.physics.model.geom_pos[target_green_id] = self.right_target
+            self.physics.model.geom_pos[target_blue_id] = self.left_target
 
         # Set cube inital location if specified
         if options is not None and (

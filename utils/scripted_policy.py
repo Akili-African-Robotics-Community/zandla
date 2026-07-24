@@ -58,35 +58,55 @@ def generate_push_instruction(direction="left", swap_targets=False):
     return random.choice(templates)
 
 
+EE_INIT_POS = np.array([0.0, 0.5, 1.0, 0.5, 0.0, 0.5], dtype=np.float32)
+
+
 def get_next_action(
     obs,
     physics,
+    ee_ini_pos=EE_INIT_POS,
     direction="left",
     step_count=0,
-    approach_steps=25,
+    approach_steps=35,
     push_steps=50,
+    return_steps=35,
+    delay_steps=5,
     swap_targets=False,
+    reset_eef_pos=False,
+    return_step_count=0,
 ):
     """
-    Generates the next action given the current observations, actions are generated based on the current step counts
+    Generates the next action given the current observations, actions are generated based on the current step counts and phase
     moves the end-effector beside the cube if step_count < 25, and moves the cube to the target otherwise.
-    (n.b. steps is the reliable option so far)
+    Phase 1: Moves the robot from its initial position to beside the cube opposite the target area.
+    Phase 2: Moves the robot to push the cube to the target position.
+    Phase 3: Moves the robot after phase 2 to the starting position.
+    (n.b. steps is the most reliable option so far)
     Args:
         obs: dictionary containing the current observations
         physics: dm_control physics object
-        direction: string specifying the direction of motion between left and right to choose the target colour.
-        step_count: integer representing the current step count
-        approach_steps: integer representing the number of steps to move to the point beside the cube
-        push_steps: integer representing the number of steps to move the cube to the target destination
-        swap_targets: bool specifying if the targets are swapped
+        ee_ini_pos: array of initial joint positions of the robot at reset
+        direction: string specifying motion direction ("left" or "right")
+        step_count: integer representing total episode step count
+        approach_steps: integer representing steps for Phase 1 
+        push_steps: integer representing steps for Phase 2 
+        return_steps: integer representing total steps for Phase 3 
+        delay_steps: integer representing steps to pause for before returning to start position
+        swap_targets: bool specifying if target colors are swapped
+        reset_eef_pos: bool or int flag indicating Phase 3 is active
+        return_step_count: integer representing current step count in Phase 3
 
     Returns:
-        next_action: numpy array of shape (6,) containing action to carried out in the next step
+        next_action: numpy array of shape (6,) containing action for the next step
+        is_at_init: bool indicating if end-effector is at initial position to end capture
     """
     cube_pos = obs["cube_position"]
     arm_joints = obs["joint_positions"]
 
-    # swaps target location if specified
+    # Target joint positions for Phase 3
+    target_start_joints = ee_ini_pos
+
+    # Swaps target location if specified
     if not swap_targets:
         target_pos = (
             obs["target_green_position"]
@@ -100,21 +120,39 @@ def get_next_action(
             else obs["target_green_position"]
         )
 
-    # calculation of end-effector position beside the cube
+    # Calculation of end-effector position beside the cube
     y_offset = -0.05 if direction.lower() == "left" else 0.05
     wp_beside = np.array([cube_pos[0], cube_pos[1] + y_offset, 0.025])
 
-    # final target position
+    # Final target position
     wp_destination = np.array([cube_pos[0], target_pos[1], 0.025])
 
-    # Generating action based on step count, if < 25 move beside the cube, else move cube to target
-    if step_count < approach_steps:
+    # Generate next action based on current phase
+    if reset_eef_pos:
+        # Phase 3 logic, waits for delay then the robot moves to the inital positoin
+        if return_step_count < delay_steps:
+            # Keep current position during delay phase
+            action = arm_joints.copy()
+        else:
+            move_step = return_step_count - delay_steps + 1
+            move_total = float(max(1, return_steps - delay_steps))
+            alpha = min(1.0, move_step / move_total)
+            action = (1 - alpha) * arm_joints + alpha * target_start_joints
+    elif step_count < approach_steps:
+        # Phase 1: Move the robot to the cube's side
         target_joints = mc_ik(physics, target_pos=wp_beside, site_name="gripperframe")
         alpha = (step_count + 1) / float(approach_steps)
         action = (1 - alpha) * arm_joints + alpha * target_joints
     else:
+        # Phase 2: Push cube to the target
         push_step = step_count - approach_steps + 1
         alpha = min(1.0, push_step / float(push_steps))
         current_wp = (1 - alpha) * wp_beside + alpha * wp_destination
         action = mc_ik(physics, target_pos=current_wp, site_name="gripperframe")
-    return action
+
+    # Check if current joint position matches initial position to end capturing
+    is_at_init = False
+    if step_count >= 10:
+        is_at_init = bool(np.allclose(arm_joints, target_start_joints, atol=1e-2))
+
+    return action, is_at_init
